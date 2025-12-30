@@ -1,0 +1,206 @@
+package org.firstinspires.ftc.teamcode.pedroPathing;
+
+import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.Path;
+import com.pedropathing.util.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import static org.firstinspires.ftc.teamcode.pedroPathing.BlueSidePedro.CloseBlueSideConfigurables.*;
+
+@Autonomous()
+public class BlueSidePedro extends OpMode {
+
+    private Follower follower;
+    private Timer pathTimer;
+    private int pathState;
+
+    // Start pose of the robot
+    private final Pose startPose = new Pose(25.733, 126.585, Math.toRadians(0));
+
+    // Generated paths
+    private Path StartToShoot, IntakeCloseLine, ShootCloseLine, PrepIntakeMidLine, IntakeMidLine, ShootMidLine, PrepIntakeFarLine, IntakeFarLine, ShootFarLine;
+
+    @Configurable
+    public static class CloseBlueSideConfigurables {
+        //Adjustable power of dt when intaking and when not intaking (slower for ++accuracy)
+        public static double intakePathMaxDrivetrainPower = 0.5;
+        public static double defaultPathMaxDrivetrainPower = 0.8;
+
+        //x coordinate of shooting pos and end of intake pos (for every line)
+        public static double shootPositionXCoordinate = 50.000;
+        public static double intakePathEndXCoordinate = 15.0;
+    }
+
+    /**
+     * This method is called once at the init of the OpMode.
+     */
+    @Override
+    public void init() {
+        pathTimer = new Timer();
+        follower = Constants.createFollower(hardwareMap);
+        buildPaths();
+        follower.setStartingPose(startPose);
+    }
+
+    /**
+     * This method is called continuously after Init while waiting for "play".
+     */
+    @Override
+    public void init_loop() {
+    }
+
+    /**
+     * This method is called once at the start of the OpMode.
+     * It runs all the setup actions, including building paths and starting the path system
+     */
+    @Override
+    public void start() {
+        setPathState(0);
+    }
+
+    /**
+     * This is the main loop of the OpMode, it will run repeatedly after clicking "Play".
+     */
+    @Override
+    public void loop() {
+        // These loop the movements of the robot, these must be called continuously in order to work
+        follower.update();
+        autonomousPathUpdate();
+
+        // Feedback to Driver Hub for debugging
+        telemetry.addData("path state", pathState);
+        telemetry.addData("x", follower.getPose().getX());
+        telemetry.addData("y", follower.getPose().getY());
+        telemetry.addData("heading", follower.getPose().getHeading());
+        telemetry.addData("path completion %", follower.getPathCompletion());
+
+        telemetry.update();
+    }
+
+    /**
+     * Builds all the paths for the autonomous routine.
+     */
+    public void buildPaths() {
+        StartToShoot = new Path(new BezierLine(startPose, new Pose(shootPositionXCoordinate, 85.000)));
+        StartToShoot.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        IntakeCloseLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(intakePathEndXCoordinate, 85.000)));
+        IntakeCloseLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        ShootCloseLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 85.000)));
+        ShootCloseLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        PrepIntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 60.000)));
+        PrepIntakeMidLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        IntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 60.000), new Pose(intakePathEndXCoordinate, 60.000)));
+        IntakeMidLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        ShootMidLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 60.000), new Pose(shootPositionXCoordinate, 85.000)));
+        ShootMidLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        PrepIntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 35.000)));
+        PrepIntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        IntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 35.000), new Pose(intakePathEndXCoordinate, 35.000)));
+        IntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+
+        ShootFarLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 35.000), new Pose(shootPositionXCoordinate, 85.000)));
+        ShootFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
+    }
+
+    /**
+     * Manages the path states using a Finite State Machine (FSM).
+     * The switch is called continuously and runs the pathing.
+     * Every time the switch changes case, it will reset the timer.
+     */
+    public void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0:
+                // Start to shoot position
+                follower.followPath(StartToShoot);
+                setPathState(1);
+                break;
+            case 1:
+                // Wait until robot reaches shoot position, then start intake close line
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(intakePathMaxDrivetrainPower);
+                    follower.followPath(IntakeCloseLine, true);
+                    setPathState(2);
+                }
+                break;
+            case 2:
+                // Wait until robot reaches intake close line position, then shoot
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
+                    follower.followPath(ShootCloseLine, true);
+                    setPathState(3);
+                }
+                break;
+            case 3:
+                // Wait until robot reaches shoot position, then prep for mid line intake
+                if (!follower.isBusy()) {
+                    follower.followPath(PrepIntakeMidLine, true);
+                    setPathState(4);
+                }
+                break;
+            case 4:
+                // Wait until robot reaches prep position, then start mid line intake
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(intakePathMaxDrivetrainPower);
+                    follower.followPath(IntakeMidLine, true);
+                    setPathState(5);
+                }
+                break;
+            case 5:
+                // Wait until robot reaches intake mid line position, then shoot
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
+                    follower.followPath(ShootMidLine, true);
+                    setPathState(6);
+                }
+                break;
+            case 6:
+                // Wait until robot reaches shoot position, then prep for far line intake
+                if (!follower.isBusy()) {
+                    follower.followPath(PrepIntakeFarLine, true);
+                    setPathState(7);
+                }
+                break;
+            case 7:
+                // Wait until robot reaches prep position, then start far line intake
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(intakePathMaxDrivetrainPower);
+                    follower.followPath(IntakeFarLine, true);
+                    setPathState(8);
+                }
+                break;
+            case 8:
+                // Wait until robot reaches intake far line position, then shoot
+                if (!follower.isBusy()) {
+                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
+                    follower.followPath(ShootFarLine, true);
+                    setPathState(9);
+                }
+                break;
+            case 9:
+                // Wait until robot reaches shoot position, then end
+                if (!follower.isBusy()) {
+                    // Set the state to a case we won't use, so it just stops running new paths
+                    setPathState(-1);
+                }
+                break;
+        }
+    }
+
+    /**
+     * Changes the states of the paths. It will also reset the timers of the individual switches.
+     */
+    public void setPathState(int pState) {
+        pathState = pState;
+        pathTimer.resetTimer();
+    }
+}
