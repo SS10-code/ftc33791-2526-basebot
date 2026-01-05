@@ -102,10 +102,10 @@ public class DEVUSETHISTELEOP extends LinearOpMode {
         while (opModeIsActive()) {
 
             direction_x = gamepad1.left_stick_x;
-            direction_y = gamepad1.left_stick_y;
+            direction_y = -gamepad1.left_stick_y;
             pivot       = gamepad1.right_stick_x * 0.8;
             heading     = pinpoint.getHeading(AngleUnit.DEGREES);
-            driveFC(direction_y, direction_x, pivot, heading);
+            remote2(direction_y, direction_x, pivot, heading);
 
             if (gamepad1.left_bumper) {
                 intake.setPower(-1.0);
@@ -126,31 +126,30 @@ public class DEVUSETHISTELEOP extends LinearOpMode {
     /**
      * Field-centric drive with heading compensation.
      *
-     * @param vertical   Vertical input (-1.0 to 1.0)
-     * @param horizontal Horizontal input (-1.0 to 1.0)
-     * @param pivot      Rotation input (-1.0 to 1.0)
      * @param heading    Current robot heading in radians
      */
-    public void driveFC(double vertical, double horizontal, double pivot, double heading) {
-        this.vertical = vertical;
-        this.horizontal = horizontal;
-        this.pivot = pivot;
-        this.heading = heading;
+        public void remote2(double y, double x, double rx, double heading) {
+        frontLeft.setDirection(DcMotor.Direction.FORWARD);
+        frontRight.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.FORWARD);
+        backRight.setDirection(DcMotor.Direction.REVERSE);
+        // Rotate the movement direction counter to the bot's rotation
+        double rotX = x * Math.cos(-heading) - y * Math.sin(-heading);
+        double rotY = x * Math.sin(-heading) + y * Math.cos(-heading);
 
-        theta = 2 * Math.PI + Math.atan2(vertical, horizontal) - heading;
-        power = Math.hypot(horizontal, vertical);
+        rotX = rotX * 1.1;  // Counteract imperfect strafing
 
-        sin = Math.sin(theta - Math.PI / 4);
-        cos = Math.cos(theta - Math.PI / 4);
-        max = Math.max(Math.abs(sin), Math.abs(cos));
+        // Denominator is the largest motor power (absolute value) or 1
+        // This ensures all the powers maintain the same ratio,
+        // but only if at least one is out of the range [-1, 1]
+        double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
+        double FLPower = (rotY + rotX + rx) / denominator;
+        double FRPower = (rotY - rotX + rx) / denominator;
+        double BLPower = (rotY - rotX - rx) / denominator;
+        double BRPower = (rotY + rotX - rx) / denominator;
 
-        FLPower = power * (cos / max) + pivot;
-        FRPower = power * (sin / max) - pivot;
-        BLPower = power * -(sin / max) - pivot;
-        BRPower = power * -(cos / max) + pivot;
-
-        frontLeft.setPower(-FLPower);
-        frontRight.setPower(-FRPower);
+        frontLeft.setPower(FLPower);
+        frontRight.setPower(FRPower);
         backLeft.setPower(BLPower);
         backRight.setPower(BRPower);
 
