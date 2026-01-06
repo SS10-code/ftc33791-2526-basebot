@@ -52,6 +52,7 @@ public class Teleop_Basebot extends LinearOpMode {
 
         // Index
         public static final int INDEX_STEP = 280;
+        public static final double PASSIVE_INDEX_VELOCITY = 50;
 
         // Limelight
         public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
@@ -181,8 +182,8 @@ public class Teleop_Basebot extends LinearOpMode {
             if (gamepad.right_trigger > Constants.TRIGGER_THRESHOLD) {
                 intake.setPower(Constants.INTAKE_POWER);
                 if (distance.getDistance(DistanceUnit.INCH) > 2) {
-                    index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                    index.setPower(0.5);
+                    index.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                    index.setVelocity(Constants.PASSIVE_INDEX_VELOCITY);
                 } else {
                     index.setPower(0.0);
                 }
