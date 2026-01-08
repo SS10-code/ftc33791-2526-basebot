@@ -151,7 +151,7 @@ public class Teleop_Basebot extends LinearOpMode {
             pivot = gamepad.right_stick_x * Constants.PIVOT_MULTIPLIER;
             heading = pinpoint.getHeading(AngleUnit.RADIANS);
 
-            if (gamepad.cross) {
+            if (gamepad.cross || gamepad.circle) {
                 telemetry.addData("Auto Align Status: ", autoAlign(Constants.AUTO_ALIGN_TOLERANCE));
             } else {
                 fieldCentric(direction_y, direction_x, pivot, heading);
