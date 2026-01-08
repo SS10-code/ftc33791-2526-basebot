@@ -56,6 +56,7 @@ public class Teleop_Basebot extends LinearOpMode {
         // Index
         public static final int INDEX_STEP = 280;
         public static final double PASSIVE_INDEX_VELOCITY = 20;
+        public static double MAG_DUMP_POWER = 0.9;
 
         // Limelight
         public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
@@ -167,10 +168,12 @@ public class Teleop_Basebot extends LinearOpMode {
             if (gamepad.dpadUpWasPressed()) {
                 closeZone = true;
                 farZone = false;
+                Constants.MAG_DUMP_POWER = 0.9;
                 setShooterVel(Constants.CLOSE_ZONE_VELOCITY);
             } else if (gamepad.dpadDownWasPressed()) {
                 farZone = true;
                 closeZone = false;
+                Constants.MAG_DUMP_POWER = 0.7;
                 setShooterVel(Constants.FAR_ZONE_VELOCITY);
             }
 
@@ -212,8 +215,8 @@ public class Teleop_Basebot extends LinearOpMode {
 //                intake.setPower(1.0);
             } else if (gamepad.circle) {
                 index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                index.setPower(0.85);
-                intake.setPower(0.85);
+                index.setPower(Constants.MAG_DUMP_POWER);
+                intake.setPower(Constants.MAG_DUMP_POWER);
             } else {
                 index.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 intake.setPower(0);
