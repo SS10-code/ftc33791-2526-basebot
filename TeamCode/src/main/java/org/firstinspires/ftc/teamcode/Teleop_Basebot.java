@@ -212,8 +212,8 @@ public class Teleop_Basebot extends LinearOpMode {
 //                intake.setPower(1.0);
             } else if (gamepad.circle) {
                 index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                index.setPower(1);
-                intake.setPower(1);
+                index.setPower(0.85);
+                intake.setPower(0.85);
             } else {
                 index.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 intake.setPower(0);
