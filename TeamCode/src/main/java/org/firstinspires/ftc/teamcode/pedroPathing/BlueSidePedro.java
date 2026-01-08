@@ -47,6 +47,7 @@ public class BlueSidePedro extends OpMode {
         // Index
         public static final int INDEX_STEP = 280;
         public static final double PASSIVE_INDEX_VELOCITY = 20;
+        public static final double MAG_DUMP_POWER = 0.9;
 
         // Limelight
         public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
@@ -381,8 +382,8 @@ public class BlueSidePedro extends OpMode {
         actiontime.reset();
         while (actiontime.seconds()<seconds) {
             index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            index.setPower(1);
-            intake.setPower(1);
+            index.setPower(TeleOpConstants.MAG_DUMP_POWER);
+            intake.setPower(TeleOpConstants.MAG_DUMP_POWER);
         }
     }
 
