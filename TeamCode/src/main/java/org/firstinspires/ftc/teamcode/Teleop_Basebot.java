@@ -35,8 +35,8 @@ public class Teleop_Basebot extends LinearOpMode {
     // =====================================================================
     public static class Constants {
         // Shooter
-        public static final double CLOSE_ZONE_VELOCITY = 1280;
-        public static final double FAR_ZONE_VELOCITY = 1520;
+        public static final double CLOSE_ZONE_VELOCITY = 1230;
+        public static final double FAR_ZONE_VELOCITY = 1500;
         public static final double SHOOTER_P_GAIN = 1;
         public static final double SHOOTER_I_GAIN = 0.001;
         public static final double SHOOTER_D_GAIN = 0.0;
@@ -212,8 +212,8 @@ public class Teleop_Basebot extends LinearOpMode {
 //                intake.setPower(1.0);
             } else if (gamepad.circle) {
                 index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                index.setPower(0.85);
-                intake.setPower(0.85);
+                index.setPower(0.9);
+                intake.setPower(0.9);
             } else {
                 index.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                 intake.setPower(0);
