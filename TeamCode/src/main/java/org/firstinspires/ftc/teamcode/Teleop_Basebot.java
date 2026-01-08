@@ -35,8 +35,8 @@ public class Teleop_Basebot extends LinearOpMode {
     // =====================================================================
     public static class Constants {
         // Shooter
-        public static final double CLOSE_ZONE_VELOCITY = 1280;
-        public static final double FAR_ZONE_VELOCITY = 1520;
+        public static final double CLOSE_ZONE_VELOCITY = 1230;
+        public static final double FAR_ZONE_VELOCITY = 1500;
         public static final double SHOOTER_P_GAIN = 1;
         public static final double SHOOTER_I_GAIN = 0.001;
         public static final double SHOOTER_D_GAIN = 0.0;
@@ -152,7 +152,7 @@ public class Teleop_Basebot extends LinearOpMode {
             pivot = gamepad.right_stick_x * Constants.PIVOT_MULTIPLIER;
             heading = pinpoint.getHeading(AngleUnit.RADIANS);
 
-            if (gamepad.cross || gamepad.circle) {
+            if (gamepad.cross) {
                 telemetry.addData("Auto Align Status: ", autoAlign(Constants.AUTO_ALIGN_TOLERANCE));
             } else {
                 fieldCentric(direction_y, direction_x, pivot, heading);
