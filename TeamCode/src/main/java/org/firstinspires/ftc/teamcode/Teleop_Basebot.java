@@ -245,6 +245,7 @@ public class Teleop_Basebot extends LinearOpMode {
             }
 
             // --- TELEMETRY ---
+            telemetry.addData("Heading angle (DEGREES)", pinpoint.getHeading(AngleUnit.DEGREES));
             telemetry.addData("Status", "Run Time: " + runtime.toString());
             telemetry.addData("shooterVel", getAvgShooterVel());
             telemetry.addData("shooterTargetVel", shooterTargetVel);
