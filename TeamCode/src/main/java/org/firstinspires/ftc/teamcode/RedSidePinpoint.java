@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -18,7 +17,6 @@ import static org.firstinspires.ftc.teamcode.RedSidePinpoint.RedSidePinpointConf
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.teamcode.Teleop_Basebot;
 
 @Autonomous()
 public class RedSidePinpoint extends OpMode {
@@ -49,7 +47,6 @@ public class RedSidePinpoint extends OpMode {
     // =====================================================================
     // CONFIGURABLES
     // =====================================================================
-    @Configurable
     public static class RedSidePinpointConfigurables {
         // Drivetrain power settings
         public static double intakePathMaxDrivetrainPower = 0.5;
