@@ -17,10 +17,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 /**
  * Teleop_Basebot provides teleoperated control for the robot during driver-controlled periods.
  * Self-contained file with all necessary classes embedded.
@@ -41,6 +37,7 @@ public class Teleop_Basebot extends LinearOpMode {
         public static final double SHOOTER_I_GAIN = 0.001;
         public static final double SHOOTER_D_GAIN = 0.0;
         public static final int SHOOTER_TOLERANCE = 50;
+        public static int SHOOTER_PLUS = 50;
 
         // Drive
         public static final double PIVOT_MULTIPLIER = 0.8;
@@ -58,22 +55,24 @@ public class Teleop_Basebot extends LinearOpMode {
         public static final double PASSIVE_INDEX_VELOCITY = 20;
         public static double MAG_DUMP_POWER = 0.9;
 
+
         // Limelight
         public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
         public static final double LIMELIGHT_HEIGHT = 13.4;
         public static final double GOAL_HEIGHT = 38.75 - 9.25;
         //If turns left, positive is more left
         //If turns right, positive is more right (edit these comments to confirm)
-        public static final double TX_OFFSET_DEGREES = 2;
+        public static final double TX_OFFSET_DEGREES_CLOSE = 0;
+        public static final double TX_OFFSET_DEGREES_FAR = -1;
+
 
         // Pinpoint
         public static final double PINPOINT_X_OFFSET = -107.31371;
         public static final double PINPOINT_Y_OFFSET = 0.0;
 
-        // AutoShoot regression data
-        public static final double[] DISTANCES = {};
-        public static final double[] VELOCITIES = {};
-        public static final int REGRESSION_DEGREE = 2;
+        // AutoShoot lookup table data (distance in inches -> shooter velocity)
+        public static final double[] DISTANCES = {27, 29.25, 30.2, 31, 32, 34, 35, 46, 47, 48};
+        public static final double[] VELOCITIES = {1050, 1150, 1150, 1150, 1150, 1200, 1200, 1400, 1400, 1400};
 
         // Distance sensor
         public static final double ACTIVATION_DISTANCE = 3.3; //INCHES
@@ -112,8 +111,8 @@ public class Teleop_Basebot extends LinearOpMode {
     double shooterIntegral = 0;
     double shooterLastError = 0;
 
-    // Velocity regression
-    ShooterVelocityRegression regression;
+    // Shooter velocity model
+    ShooterVelocityLookupTable shooterVelocityTable;
 
     // =====================================================================
     // MAIN OPMODE
@@ -125,9 +124,8 @@ public class Teleop_Basebot extends LinearOpMode {
 
         initializeHardware();
 
-        // Initialize regression
-        regression = new ShooterVelocityRegression(Constants.REGRESSION_DEGREE);
-        regression.addDataPoints(Constants.DISTANCES, Constants.VELOCITIES);
+        // Initialize lookup table
+        shooterVelocityTable = new ShooterVelocityLookupTable(Constants.DISTANCES, Constants.VELOCITIES);
 
         gamepad = new Gamepad();
 //        lastGamepad = new Gamepad();
@@ -180,10 +178,18 @@ public class Teleop_Basebot extends LinearOpMode {
                 setShooterVel(Constants.FAR_ZONE_VELOCITY);
             }
 
+            if (getDistanceToTag() > 30 && getDistanceToTag() != Double.POSITIVE_INFINITY) {
+                Constants.MAG_DUMP_POWER = 0.6;
+                Constants.SHOOTER_PLUS = 50;
+            } else {
+                Constants.MAG_DUMP_POWER = 0.9;
+                Constants.SHOOTER_PLUS = 75;
+            }
+
             // --- SHOOTER ---
             if (gamepad.triangle) {
-                double predictedVel = regression.predict(getDistanceToTag());
-                setShooterVelWithPower(predictedVel);
+                double predictedVel = shooterVelocityTable.predict(getDistanceToTag());
+                setShooterVel(predictedVel + Constants.SHOOTER_PLUS);
             }
 
             if (gamepad.rightBumperWasPressed()) {
@@ -307,7 +313,7 @@ public class Teleop_Basebot extends LinearOpMode {
             return "RESULT INVALID";
         }
 
-        double tx = result.getTx() - Constants.TX_OFFSET_DEGREES;
+        double tx = result.getTx() - (getDistanceToTag() > 40 ? Constants.TX_OFFSET_DEGREES_CLOSE : Constants.TX_OFFSET_DEGREES_FAR);
         if (Math.abs(tx) <= tolerance) {
             frontLeft.setPower(0);
             frontRight.setPower(0);
@@ -393,128 +399,51 @@ public class Teleop_Basebot extends LinearOpMode {
     }
 
     // =====================================================================
-    // SHOOTER VELOCITY REGRESSION
+    // SHOOTER VELOCITY LOOKUP TABLE (LINEAR INTERPOLATION)
     // =====================================================================
-    public static class ShooterVelocityRegression {
+    public static class ShooterVelocityLookupTable {
+        private final double[] distances;
+        private final double[] velocities;
 
-        public static class DataPoint {
-            public final double distance;
-            public final double velocity;
-
-            public DataPoint(double distance, double velocity) {
-                this.distance = distance;
-                this.velocity = velocity;
-            }
+        public ShooterVelocityLookupTable(double[] distances, double[] velocities) {
+            this.distances = distances;
+            this.velocities = velocities;
         }
 
-        private final int degree;
-        private final List<DataPoint> dataPoints;
-        private double[] coefficients;
-        private boolean isFitted;
-
-        public ShooterVelocityRegression(int degree) {
-            this.degree = Math.max(1, degree);
-            this.dataPoints = new ArrayList<>();
-            this.coefficients = null;
-            this.isFitted = false;
-        }
-
-        public void addDataPoints(double[] distances, double[] velocities) {
-            if (distances == null || velocities == null) return;
-            if (distances.length != velocities.length) return;
-
-            for (int i = 0; i < distances.length; i++) {
-                dataPoints.add(new DataPoint(distances[i], velocities[i]));
-            }
-            if (!dataPoints.isEmpty()) fit();
-        }
-
-        public void fit() {
-            if (dataPoints.isEmpty()) return;
-
-            int n = dataPoints.size();
-            int m = degree + 1;
-
-            double[][] X = new double[n][m];
-            double[] y = new double[n];
-
-            for (int i = 0; i < n; i++) {
-                DataPoint point = dataPoints.get(i);
-                y[i] = point.velocity;
-                for (int j = 0; j < m; j++) {
-                    X[i][j] = Math.pow(point.distance, j);
-                }
-            }
-
-            coefficients = solveLeastSquares(X, y);
-            isFitted = true;
-        }
-
-        private double[] solveLeastSquares(double[][] X, double[] y) {
-            int n = X.length;
-            int m = X[0].length;
-
-            double[][] XTX = new double[m][m];
-            for (int i = 0; i < m; i++) {
-                for (int j = 0; j < m; j++) {
-                    double sum = 0;
-                    for (int k = 0; k < n; k++) sum += X[k][i] * X[k][j];
-                    XTX[i][j] = sum;
-                }
-            }
-
-            double[] XTy = new double[m];
-            for (int i = 0; i < m; i++) {
-                double sum = 0;
-                for (int k = 0; k < n; k++) sum += X[k][i] * y[k];
-                XTy[i] = sum;
-            }
-
-            return solveSystem(XTX, XTy);
-        }
-
-        private double[] solveSystem(double[][] A, double[] b) {
-            int n = A.length;
-            double[][] aug = new double[n][n + 1];
-
-            for (int i = 0; i < n; i++) {
-                System.arraycopy(A[i], 0, aug[i], 0, n);
-                aug[i][n] = b[i];
-            }
-
-            for (int i = 0; i < n; i++) {
-                int maxRow = i;
-                for (int k = i + 1; k < n; k++) {
-                    if (Math.abs(aug[k][i]) > Math.abs(aug[maxRow][i])) maxRow = k;
-                }
-                double[] temp = aug[i];
-                aug[i] = aug[maxRow];
-                aug[maxRow] = temp;
-
-                for (int k = i + 1; k < n; k++) {
-                    if (Math.abs(aug[i][i]) < 1e-10) aug[i][i] = 1e-10;
-                    double factor = aug[k][i] / aug[i][i];
-                    for (int j = i; j < n + 1; j++) aug[k][j] -= factor * aug[i][j];
-                }
-            }
-
-            double[] x = new double[n];
-            for (int i = n - 1; i >= 0; i--) {
-                x[i] = aug[i][n];
-                for (int j = i + 1; j < n; j++) x[i] -= aug[i][j] * x[j];
-                x[i] = Math.abs(aug[i][i]) < 1e-10 ? 0 : x[i] / aug[i][i];
-            }
-            return x;
-        }
-
+        /**
+         * Predicts shooter velocity from distance using a piecewise-linear lookup table.
+         * - If distance is outside the table range, clamps to the nearest endpoint.
+         * - If distance is invalid (NaN/Inf) or the table is invalid, returns CLOSE_ZONE_VELOCITY.
+         */
         public double predict(double distance) {
-            if (!isFitted || coefficients == null) return Constants.CLOSE_ZONE_VELOCITY;
+            if (Double.isNaN(distance) || Double.isInfinite(distance)) return Constants.CLOSE_ZONE_VELOCITY;
+            if (distances == null || velocities == null) return Constants.CLOSE_ZONE_VELOCITY;
+            if (distances.length == 0 || velocities.length == 0) return Constants.CLOSE_ZONE_VELOCITY;
+            if (distances.length != velocities.length) return Constants.CLOSE_ZONE_VELOCITY;
+            if (distances.length == 1) return velocities[0];
 
-            double result = 0;
-            for (int i = 0; i < coefficients.length; i++) {
-                result += coefficients[i] * Math.pow(distance, i);
+            // Clamp out-of-range
+            if (distance <= distances[0]) return velocities[0];
+            int last = distances.length - 1;
+            if (distance >= distances[last]) return velocities[last];
+
+            // Find bracketing segment [i, i+1]
+            for (int i = 0; i < last; i++) {
+                double d0 = distances[i];
+                double d1 = distances[i + 1];
+
+                if (distance >= d0 && distance <= d1) {
+                    double v0 = velocities[i];
+                    double v1 = velocities[i + 1];
+                    double denom = (d1 - d0);
+                    if (Math.abs(denom) < 1e-9) return (v0 + v1) * 0.5;
+                    double t = (distance - d0) / denom;
+                    return v0 + t * (v1 - v0);
+                }
             }
-            return result;
+
+            // Shouldn't happen if distances[] is monotonic and clamped above, but keep a safe fallback.
+            return velocities[last];
         }
     }
 
@@ -536,7 +465,7 @@ public class Teleop_Basebot extends LinearOpMode {
         backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         intake = hardwareMap.get(DcMotorEx.class, "intake");
-        intake.setDirection(DcMotorSimple.Direction.FORWARD);
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
         intake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 

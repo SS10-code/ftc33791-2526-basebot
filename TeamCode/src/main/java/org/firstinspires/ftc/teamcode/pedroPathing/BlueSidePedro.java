@@ -105,10 +105,10 @@ public class BlueSidePedro extends OpMode {
         public static double intakePathEndXCoordinate = 15.0;
 
 
-        public static double shooterVelocityPreload = 1250;
-        public static double shooterVelocityGoal = 1250;
-        public static double shooterVelocityMid = 1250;
-        public static double shooterVelocityLoadingZone = 1250;
+        public static double shooterVelocityPreload = 950;
+        public static double shooterVelocityGoal = 1100;
+        public static double shooterVelocityMid = 1100;
+        public static double shooterVelocityLoadingZone = 1100;
     }
 
     /**

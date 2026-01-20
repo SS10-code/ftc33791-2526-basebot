@@ -101,13 +101,13 @@ public class RedSidePedro extends OpMode {
         public static double defaultPathMaxDrivetrainPower = 0.8;
 
         //x coordinate of shooting pos and end of intake pos (for every line)
-        public static double shootPositionXCoordinate = 100.000;
-        public static double intakePathEndXCoordinate = 130.000;
+        public static double shootPositionXCoordinate = 95.000;
+        public static double intakePathEndXCoordinate = 135.000;
 
-        public static double shooterVelocityPreload = 1250;
-        public static double shooterVelocityGoal = 1250;
-        public static double shooterVelocityMid = 1250;
-        public static double shooterVelocityLoadingZone = 1250;
+        public static double shooterVelocityPreload = 1050;
+        public static double shooterVelocityGoal = 1050;
+        public static double shooterVelocityMid = 1050;
+        public static double shooterVelocityLoadingZone = 1050;
     }
 
     /**
@@ -167,6 +167,7 @@ public class RedSidePedro extends OpMode {
         telemetry.addData("y", follower.getPose().getY());
         telemetry.addData("heading", follower.getPose().getHeading());
         telemetry.addData("path completion %", follower.getPathCompletion());
+        telemetry.addData("shooter velo", rShooter.getVelocity());
 
         telemetry.update();
     }
@@ -179,29 +180,13 @@ public class RedSidePedro extends OpMode {
         StartToShoot.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(45));
 
         IntakeCloseLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(intakePathEndXCoordinate, 85.000)));
-        IntakeCloseLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(45), Math.toRadians(0))
-                        )
-                )
-        );
+        IntakeCloseLine.setLinearHeadingInterpolation(0, 0);
 
         ShootCloseLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 85.000)));
         ShootCloseLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(45));
 
         PrepIntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 60.000)));
-        PrepIntakeMidLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(45), Math.toRadians(0))
-                        )
-                )
-        );
+        PrepIntakeMidLine.setLinearHeadingInterpolation(0, 0);
 
         IntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 60.000), new Pose(intakePathEndXCoordinate, 60.000)));
         IntakeMidLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
@@ -210,15 +195,8 @@ public class RedSidePedro extends OpMode {
         ShootMidLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(45));
 
         PrepIntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 35.000)));
-        PrepIntakeFarLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(45), Math.toRadians(0))
-                        )
-                )
-        );
+        PrepIntakeFarLine.setLinearHeadingInterpolation(0, 0);
+
 
         IntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 35.000), new Pose(intakePathEndXCoordinate, 35.000)));
         IntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
@@ -407,18 +385,8 @@ public class RedSidePedro extends OpMode {
 
     void initializeHardware() {
         // --- Initialize Hardware ---
-        frontLeft = hardwareMap.get(DcMotorEx.class, "fl");
-        frontRight = hardwareMap.get(DcMotorEx.class, "fr");
-        backLeft = hardwareMap.get(DcMotorEx.class, "bl");
-        backRight = hardwareMap.get(DcMotorEx.class, "br");
-
-        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
         intake = hardwareMap.get(DcMotorEx.class, "intake");
-        intake.setDirection(DcMotorSimple.Direction.FORWARD);
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
         intake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
@@ -437,12 +405,6 @@ public class RedSidePedro extends OpMode {
         rShooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         lShooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         rShooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-        pinpoint.setOffsets(TeleOpConstants.PINPOINT_X_OFFSET, TeleOpConstants.PINPOINT_Y_OFFSET, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_SWINGARM_POD);
-        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
