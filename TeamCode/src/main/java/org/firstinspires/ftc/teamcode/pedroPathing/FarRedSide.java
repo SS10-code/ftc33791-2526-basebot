@@ -1,10 +1,12 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import static org.firstinspires.ftc.teamcode.pedroPathing.FarRedSide.FarRedSideConfigurables.*;
+
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.HeadingInterpolator;
 import com.pedropathing.paths.Path;
 import com.pedropathing.util.Timer;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -19,59 +21,16 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import static org.firstinspires.ftc.teamcode.pedroPathing.BlueSidePedro.CloseBlueSideConfigurables.*;
-
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Teleop_Basebot;
 
 @Autonomous()
-public class BlueSidePedro extends OpMode {
-
-    // =====================================================================
-    // CONSTANTS
-    // =====================================================================
-    public static class TeleOpConstants {
-        // Shooter
-        public static final double CLOSE_ZONE_VELOCITY = 1300;
-        public static final double FAR_ZONE_VELOCITY = 1850;
-        public static final double SHOOTER_P_GAIN = 1;
-        public static final double SHOOTER_I_GAIN = 0.001;
-        public static final double SHOOTER_D_GAIN = 0.0;
-        public static final int SHOOTER_TOLERANCE = 10;
-
-        // Intake
-        public static final double INTAKE_POWER = 1.0;
-        public static final double INTAKE_REVERSE_POWER = -0.7;
-        public static final double TRIGGER_THRESHOLD = 0.2;
-
-        // Index
-        public static final int INDEX_STEP = 280;
-        public static final double PASSIVE_INDEX_VELOCITY = 20;
-        public static final double MAG_DUMP_POWER = 0.9;
-
-        // Limelight
-        public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
-        public static final double LIMELIGHT_HEIGHT = 13.4;
-        public static final double GOAL_HEIGHT = 38.75 - 9.25;
-
-        // Pinpoint
-        public static final double PINPOINT_X_OFFSET = -107.31371;
-        public static final double PINPOINT_Y_OFFSET = 0.0;
-
-        // AutoShoot regression data
-        public static final double[] DISTANCES = {};
-        public static final double[] VELOCITIES = {};
-        public static final int REGRESSION_DEGREE = 2;
-
-        // Distance sensor
-        public static final double ACTIVATION_DISTANCE = 2; //INCHES
-    }
-
+public class FarRedSide extends OpMode {
     // =====================================================================
     // INSTANCE VARIABLES
     // =====================================================================
     private ElapsedTime actiontime = new ElapsedTime();
-    double  shooterTargetVel;
+    double shooterTargetVel;
 
 
     // Hardware
@@ -89,26 +48,49 @@ public class BlueSidePedro extends OpMode {
     private int pathState;
 
     // Start pose of the robot
-    private final Pose startPose = new Pose(25.733, 126.585, Math.toRadians(180));
+    private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
 
     // Generated paths
-    private Path StartToShoot, IntakeCloseLine, ShootCloseLine, PrepIntakeMidLine, IntakeMidLine, ShootMidLine, PrepIntakeFarLine, IntakeFarLine, ShootFarLine;
+    private Path StartToShoot, PrepIntakeFarLine, IntakeFarLine, ShootFarLine, PrepIntakeLoadingZone, IntakeLoadingZone, ShootLoadingZone;
+
+    // =====================================================================
+    // CONSTANTS
+    // =====================================================================
+    public static class TeleOpConstants {
+        // Shooter
+        public static final int SHOOTER_TOLERANCE = 10;
+
+        // Intake
+        public static final double INTAKE_POWER = 1.0;
+
+        // Index
+        public static final int INDEX_STEP = 280;
+        public static final double PASSIVE_INDEX_VELOCITY = 20;
+        public static final double MAG_DUMP_POWER = 0.65;
+
+        // Limelight
+        public static final double LIMELIGHT_MOUNT_ANGLE = 12.0;
+        public static final double LIMELIGHT_HEIGHT = 13.4;
+        public static final double GOAL_HEIGHT = 38.75 - 9.25;
+
+        // Distance sensor
+        public static final double ACTIVATION_DISTANCE = 2; //INCHES
+    }
 
     @Configurable
-    public static class CloseBlueSideConfigurables {
+    public static class FarRedSideConfigurables {
         //Adjustable power of dt when intaking and when not intaking (slower for ++accuracy)
         public static double intakePathMaxDrivetrainPower = 0.5;
         public static double defaultPathMaxDrivetrainPower = 0.8;
 
         //x coordinate of shooting pos and end of intake pos (for every line)
-        public static double shootPositionXCoordinate = 50.000;
-        public static double intakePathEndXCoordinate = 15.0;
+        public static double shootPositionXCoordinate = 84.000;
+        public static double shootPositionTheta = 62; //Degrees
+        public static double intakePathEndXCoordinate = 135;
 
-
-        public static double shooterVelocityPreload = 950;
-        public static double shooterVelocityGoal = 1100;
-        public static double shooterVelocityMid = 1100;
-        public static double shooterVelocityLoadingZone = 1100;
+        public static double shooterVelocityPreload = 1450;
+        public static double shooterVelocitySpikeMarks = 1450;
+        public static double shooterVelocityLoadingZone = 1450;
     }
 
     /**
@@ -168,6 +150,7 @@ public class BlueSidePedro extends OpMode {
         telemetry.addData("y", follower.getPose().getY());
         telemetry.addData("heading", follower.getPose().getHeading());
         telemetry.addData("path completion %", follower.getPathCompletion());
+        telemetry.addData("shooter velo", rShooter.getVelocity());
 
         telemetry.update();
     }
@@ -176,56 +159,34 @@ public class BlueSidePedro extends OpMode {
      * Builds all the paths for the autonomous routine.
      */
     public void buildPaths() {
-        StartToShoot = new Path(new BezierLine(startPose, new Pose(shootPositionXCoordinate, 85.000)));
-        StartToShoot.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-45));
+        StartToShoot = new Path(new BezierLine(startPose, new Pose(shootPositionXCoordinate, 12.000)));
+        StartToShoot.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(shootPositionTheta));
 
-        IntakeCloseLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(intakePathEndXCoordinate, 85.000)));
-        IntakeCloseLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(-45), Math.toRadians(180))
-                        )
-                )
-        );
+        PrepIntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 12.000), new Pose(100, 35.000)));
+        PrepIntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
 
-        ShootCloseLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 85.000)));
-        ShootCloseLine.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-45));
+        IntakeFarLine = new Path(new BezierLine(new Pose(100, 35.000), new Pose(intakePathEndXCoordinate, 35.000)));
+        IntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0));
 
-        PrepIntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 60.000)));
-        PrepIntakeMidLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(-45), Math.toRadians(180))
-                        )
-                )
-        );
+        ShootFarLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 35.000), new Pose(shootPositionXCoordinate, 12.000)));
+        ShootFarLine.setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(shootPositionTheta));
 
-        IntakeMidLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 60.000), new Pose(intakePathEndXCoordinate, 60.000)));
-        IntakeMidLine.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180));
+        PrepIntakeLoadingZone = new Path(new BezierCurve(
+                new Pose(shootPositionXCoordinate, 12.000),
+                new Pose(108.910, 58.744),
+                new Pose(136.000, 28.000)
+        ));
+        PrepIntakeLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90));
 
-        ShootMidLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 60.000), new Pose(shootPositionXCoordinate, 85.000)));
-        ShootMidLine.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-45));
+        IntakeLoadingZone = new Path(new BezierLine(new Pose(136.000, 28.000), new Pose(136.000, 9.000)));
+        IntakeLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90));
 
-        PrepIntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 85.000), new Pose(shootPositionXCoordinate, 35.000)));
-        PrepIntakeFarLine.setHeadingInterpolation(
-                HeadingInterpolator.piecewise(
-                        new HeadingInterpolator.PiecewiseNode(
-                                0,
-                                .2,
-                                HeadingInterpolator.linear(Math.toRadians(-45), Math.toRadians(180))
-                        )
-                )
-        );
-
-        IntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 35.000), new Pose(intakePathEndXCoordinate, 35.000)));
-        IntakeFarLine.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180));
-
-        ShootFarLine = new Path(new BezierLine(new Pose(intakePathEndXCoordinate, 35.000), new Pose(shootPositionXCoordinate, 85.000)));
-        ShootFarLine.setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(-45));
+        ShootLoadingZone = new Path(new BezierCurve(
+                new Pose(136.000, 9.000),
+                new Pose(114.628, 40.029),
+                new Pose(shootPositionXCoordinate, 12.000)
+        ));
+        ShootLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(shootPositionTheta));
     }
 
     /**
@@ -242,83 +203,65 @@ public class BlueSidePedro extends OpMode {
                 setPathState(1);
                 break;
             case 1:
-                // Wait until robot reaches shoot position, then start intake close line
+                // Wait until robot reaches shoot position, then prep for far line intake
                 if (!follower.isBusy()) {
+                    autoAlignTimeout(0.5);
                     magDump(1.0);
-                    follower.setMaxPower(intakePathMaxDrivetrainPower);
-                    intakePassiveIndex();
-                    follower.followPath(IntakeCloseLine, true);
+                    follower.followPath(PrepIntakeFarLine, true);
                     setPathState(2);
                 }
                 break;
             case 2:
-                // Wait until robot reaches intake close line position, then shoot
+                // Wait until robot reaches prep position, then start far line intake
                 if (!follower.isBusy()) {
-                    intake.setPower(0);
-                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
-                    setShooterVel(shooterVelocityGoal);
-                    follower.followPath(ShootCloseLine, true);
+                    intakePassiveIndex();
+                    follower.setMaxPower(intakePathMaxDrivetrainPower);
+                    follower.followPath(IntakeFarLine, true);
                     setPathState(3);
                 }
                 break;
             case 3:
-                // Wait until robot reaches shoot position, then prep for mid line intake
+                // Wait until robot reaches intake far line position, then shoot
                 if (!follower.isBusy()) {
-                    magDump(1.0);
-                    follower.followPath(PrepIntakeMidLine, true);
+                    intake.setPower(1.0);
+                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
+                    setShooterVel(shooterVelocitySpikeMarks);
+                    follower.followPath(ShootFarLine, true);
                     setPathState(4);
                 }
                 break;
             case 4:
                 // Wait until robot reaches prep position, then start mid line intake
                 if (!follower.isBusy()) {
-                    intakePassiveIndex();
-                    follower.setMaxPower(intakePathMaxDrivetrainPower);
-                    follower.followPath(IntakeMidLine, true);
+                    autoAlignTimeout(0.5);
+                    magDump(1.0);
+                    follower.followPath(PrepIntakeLoadingZone, true);
                     setPathState(5);
                 }
                 break;
             case 5:
                 // Wait until robot reaches intake mid line position, then shoot
                 if (!follower.isBusy()) {
-                    intake.setPower(0);
-                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
-                    setShooterVel(shooterVelocityMid);
-                    follower.followPath(ShootMidLine, true);
+                    intakePassiveIndex();
+                    follower.setMaxPower(0.3);
+                    follower.followPath(IntakeLoadingZone, true);
                     setPathState(6);
                 }
                 break;
             case 6:
                 // Wait until robot reaches shoot position, then prep for far line intake
                 if (!follower.isBusy()) {
-                    magDump(1.0);
-                    follower.followPath(PrepIntakeFarLine, true);
+                    intake.setPower(1.0);
+                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
+                    setShooterVel(shooterVelocityLoadingZone);
+                    follower.followPath(ShootLoadingZone, true);
                     setPathState(7);
                 }
                 break;
             case 7:
                 // Wait until robot reaches prep position, then start far line intake
                 if (!follower.isBusy()) {
-                    intakePassiveIndex();
-                    follower.setMaxPower(intakePathMaxDrivetrainPower);
-                    follower.followPath(IntakeFarLine, true);
-                    setPathState(8);
-                }
-                break;
-            case 8:
-                // Wait until robot reaches intake far line position, then shoot
-                if (!follower.isBusy()) {
-                    intake.setPower(0);
-                    follower.setMaxPower(defaultPathMaxDrivetrainPower);
-                    setShooterVel(shooterVelocityLoadingZone);
-                    follower.followPath(ShootFarLine, true);
-                    setPathState(9);
-                }
-                break;
-            case 9:
-                // Wait until robot reaches shoot position, then end
-                if (!follower.isBusy()) {
-                    // Set the state to a case we won't use, so it just stops running new paths
+                    autoAlignTimeout(0.5);
                     magDump(1.0);
                     setPathState(-1);
                 }
@@ -380,10 +323,17 @@ public class BlueSidePedro extends OpMode {
 
     public void magDump(double seconds) {
         actiontime.reset();
-        while (actiontime.seconds()<seconds) {
+        while (actiontime.seconds() < seconds) {
             index.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             index.setPower(TeleOpConstants.MAG_DUMP_POWER);
             intake.setPower(TeleOpConstants.MAG_DUMP_POWER);
+        }
+    }
+
+    public void autoAlignTimeout(double seconds) {
+        actiontime.reset();
+        while (actiontime.seconds() < seconds) {
+            autoAlign(0.25);
         }
     }
 
@@ -406,6 +356,65 @@ public class BlueSidePedro extends OpMode {
         blinkinLedDriver.setPattern(pattern);
     }
 
+    // =====================================================================
+    // DRIVE METHODS
+    // =====================================================================
+    public void fieldCentric(double y, double x, double rx, double heading) {
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        frontRight.setDirection(DcMotor.Direction.FORWARD);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+        backRight.setDirection(DcMotor.Direction.FORWARD);
+
+        double rotX = x * Math.cos(-heading) - y * Math.sin(-heading);
+        double rotY = x * Math.sin(-heading) + y * Math.cos(-heading);
+
+        rotX = rotX * Teleop_Basebot.Constants.STRAFE_CORRECTION;
+
+        double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
+        double FLPower = (rotY + rotX + rx) / denominator;
+        double FRPower = (rotY - rotX - rx) / denominator;
+        double BLPower = (rotY - rotX + rx) / denominator;
+        double BRPower = (rotY + rotX - rx) / denominator;
+
+        frontLeft.setPower(FLPower);
+        frontRight.setPower(FRPower);
+        backLeft.setPower(BLPower);
+        backRight.setPower(BRPower);
+    }
+
+    public String autoAlign(double tolerance) {
+        LLResult result = limelight.getLatestResult();
+
+        if (result == null) {
+            frontLeft.setPower(0);
+            frontRight.setPower(0);
+            backLeft.setPower(0);
+            backRight.setPower(0);
+            return "RESULT NULL";
+        } else if (!result.isValid()) {
+            frontLeft.setPower(0);
+            frontRight.setPower(0);
+            backLeft.setPower(0);
+            backRight.setPower(0);
+            return "RESULT INVALID";
+        }
+
+        double tx = result.getTx() - (getDistanceToTag() > 40 ? Teleop_Basebot.Constants.TX_OFFSET_DEGREES_CLOSE : Teleop_Basebot.Constants.TX_OFFSET_DEGREES_FAR);
+        if (Math.abs(tx) <= tolerance) {
+            frontLeft.setPower(0);
+            frontRight.setPower(0);
+            backLeft.setPower(0);
+            backRight.setPower(0);
+            return "SUCCESS";
+        }
+
+        double pivot = Math.max(-1.0, Math.min(1.0, Teleop_Basebot.Constants.ALIGN_P_GAIN * tx));
+
+        fieldCentric(0, 0, pivot, 0);
+
+        return "IN PROGRESS";
+    }
+
     void initializeHardware() {
         // --- Initialize Hardware ---
         frontLeft = hardwareMap.get(DcMotorEx.class, "fl");
@@ -419,7 +428,7 @@ public class BlueSidePedro extends OpMode {
         backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         intake = hardwareMap.get(DcMotorEx.class, "intake");
-        intake.setDirection(DcMotorSimple.Direction.FORWARD);
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
         intake.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
@@ -438,12 +447,6 @@ public class BlueSidePedro extends OpMode {
         rShooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         lShooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         rShooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-        pinpoint.setOffsets(TeleOpConstants.PINPOINT_X_OFFSET, TeleOpConstants.PINPOINT_Y_OFFSET, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_SWINGARM_POD);
-        pinpoint.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD,
-                GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
