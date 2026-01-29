@@ -156,8 +156,10 @@ public class ShooterTuner extends LinearOpMode {
             // --- INTAKE ---
             if (currentGamepad.right_trigger > Constants.TRIGGER_THRESHOLD) {
                 intake.setPower(Constants.INTAKE_POWER);
+
             } else if (currentGamepad.left_trigger > Constants.TRIGGER_THRESHOLD) {
                 intake.setPower(Constants.INTAKE_REVERSE_POWER);
+                setIndexPos(index.getCurrentPosition() + 1000);
             } else {
                 intake.setPower(0);
             }

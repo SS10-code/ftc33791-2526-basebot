@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.hardware.rev.RevBlinkinLedDriver;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -62,8 +61,8 @@ public class Teleop_Basebot extends LinearOpMode {
         public static final double GOAL_HEIGHT = 38.75 - 9.25;
         //If turns left, positive is more left
         //If turns right, positive is more right (edit these comments to confirm)
-        public static final double TX_OFFSET_DEGREES_CLOSE = 0;
-        public static final double TX_OFFSET_DEGREES_FAR = -1;
+        public static final double TX_OFFSET_DEGREES_CLOSE = 5;
+        public static final double TX_OFFSET_DEGREES_FAR = 0;
 
 
         // Pinpoint
@@ -71,8 +70,8 @@ public class Teleop_Basebot extends LinearOpMode {
         public static final double PINPOINT_Y_OFFSET = 0.0;
 
         // AutoShoot lookup table data (distance in inches -> shooter velocity)
-        public static final double[] DISTANCES = {27, 29.25, 30.2, 31, 32, 34, 35, 46, 47, 48};
-        public static final double[] VELOCITIES = {1050, 1150, 1150, 1150, 1150, 1200, 1200, 1400, 1400, 1400};
+        public static final double[] DISTANCES = {27, 29.25, 30.2, 31, 32, 34, 35, 46, 47, 48, Double.POSITIVE_INFINITY};
+        public static final double[] VELOCITIES = {1050, 1150, 1150, 1150, 1150, 1200, 1200, 1400, 1400, 1400, 1050};
 
         // Distance sensor
         public static final double ACTIVATION_DISTANCE = 3.3; //INCHES
@@ -95,7 +94,7 @@ public class Teleop_Basebot extends LinearOpMode {
     DcMotorEx intake, index;
     GoBildaPinpointDriver pinpoint;
     Limelight3A limelight;
-    DistanceSensor distance;
+//    DistanceSensor distance;
     RevBlinkinLedDriver blinkinLedDriver;
     RevBlinkinLedDriver.BlinkinPattern pattern;
 
@@ -155,6 +154,8 @@ public class Teleop_Basebot extends LinearOpMode {
 
             if (gamepad.cross) {
                 telemetry.addData("Auto Align Status: ", autoAlign(Constants.AUTO_ALIGN_TOLERANCE));
+                double predictedVel = shooterVelocityTable.predict(getDistanceToTag());
+                setShooterVel(predictedVel + Constants.SHOOTER_PLUS);
             } else {
                 fieldCentric(direction_y, direction_x, pivot, heading);
             }
@@ -169,7 +170,7 @@ public class Teleop_Basebot extends LinearOpMode {
             if (gamepad.dpadUpWasPressed()) {
                 closeZone = true;
                 farZone = false;
-                Constants.MAG_DUMP_POWER = 0.9;
+                Constants.MAG_DUMP_POWER = 0.8;
                 setShooterVel(Constants.CLOSE_ZONE_VELOCITY);
             } else if (gamepad.dpadDownWasPressed()) {
                 farZone = true;
@@ -178,12 +179,12 @@ public class Teleop_Basebot extends LinearOpMode {
                 setShooterVel(Constants.FAR_ZONE_VELOCITY);
             }
 
-            if (getDistanceToTag() > 30 && getDistanceToTag() != Double.POSITIVE_INFINITY) {
+            if (getDistanceToTag() > 40 && getDistanceToTag() != Double.POSITIVE_INFINITY) {
                 Constants.MAG_DUMP_POWER = 0.6;
                 Constants.SHOOTER_PLUS = 50;
             } else {
                 Constants.MAG_DUMP_POWER = 0.9;
-                Constants.SHOOTER_PLUS = 75;
+                Constants.SHOOTER_PLUS = 85;
             }
 
             // --- SHOOTER ---
@@ -207,10 +208,8 @@ public class Teleop_Basebot extends LinearOpMode {
             // --- INDEX ---
             if (gamepad.right_trigger > Constants.TRIGGER_THRESHOLD) {
                 intake.setPower(Constants.INTAKE_POWER);
-                if (!withinDistance()) {
                     index.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                     index.setVelocity(Constants.PASSIVE_INDEX_VELOCITY);
-                }
             } else if (gamepad.left_trigger > Constants.TRIGGER_THRESHOLD) {
                 intake.setPower(Constants.INTAKE_REVERSE_POWER);
             } else if (gamepad.dpadRightWasPressed()) {
@@ -227,7 +226,9 @@ public class Teleop_Basebot extends LinearOpMode {
                 index.setPower(Constants.MAG_DUMP_POWER);
                 intake.setPower(Constants.MAG_DUMP_POWER);
             } else   {
+                index.setPower(1.0);
                 index.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                index.setTargetPosition(index.getCurrentPosition());
                 intake.setPower(0);
             }
 
@@ -237,24 +238,21 @@ public class Teleop_Basebot extends LinearOpMode {
                 setPattern(RevBlinkinLedDriver.BlinkinPattern.VIOLET);
             } else if (!shooterWithinTolerance(shooterTargetVel)) {
                 setPattern(RevBlinkinLedDriver.BlinkinPattern.ORANGE);
-            } else if (withinDistance()
-                    && gamepad1.right_trigger>Constants.TRIGGER_THRESHOLD) {
+            } else if ((gamepad.triangle || gamepad.cross) && !isLatestResultValid()) {
                 setPattern(RevBlinkinLedDriver.BlinkinPattern.BLUE);
-            } else if (shooterWithinTolerance(Constants.CLOSE_ZONE_VELOCITY)) {
-                setPattern(RevBlinkinLedDriver.BlinkinPattern.RED);
-            } else if (shooterWithinTolerance(Constants.FAR_ZONE_VELOCITY)) {
+            } else if (shooterWithinTolerance(shooterTargetVel)) {
                 setPattern(RevBlinkinLedDriver.BlinkinPattern.GREEN);
             }
 
             // --- DISTANCE ---
-            if (withinDistance()) {
-                if (!lastDistanceGood) {
-                    autoIndexAlertTimeout.reset();
-                    lastDistanceGood = true;
-                }
-            } else {
-                lastDistanceGood = false;
-            }
+//            if (withinDistance()) {
+//                if (!lastDistanceGood) {
+//                    autoIndexAlertTimeout.reset();
+//                    lastDistanceGood = true;
+//                }
+//            } else {
+//                lastDistanceGood = false;
+//            }
 
             // --- TELEMETRY ---
             telemetry.addData("Heading angle (DEGREES)", pinpoint.getHeading(AngleUnit.DEGREES));
@@ -265,7 +263,7 @@ public class Teleop_Basebot extends LinearOpMode {
             telemetry.addData("zone", closeZone ? "CLOSE" : farZone ? "FAR" : "NONE");
 //            telemetry.addData("lShooterVelo", lShooter.getVelocity());
 //            telemetry.addData("rShooterVelo", rShooter.getVelocity());
-            telemetry.addData("distanceSensor", distance.getDistance(DistanceUnit.INCH));
+//            telemetry.addData("distanceSensor", distance.getDistance(DistanceUnit.INCH));
             telemetry.update();
         }
     }
@@ -380,9 +378,9 @@ public class Teleop_Basebot extends LinearOpMode {
         index.setPower(1);
     }
 
-    public boolean withinDistance() {
-        return distance.getDistance(DistanceUnit.INCH) < Constants.ACTIVATION_DISTANCE;
-    }
+//    public boolean withinDistance() {
+//        return distance.getDistance(DistanceUnit.INCH) < Constants.ACTIVATION_DISTANCE;
+//    }
 
     // =====================================================================
     // LIMELIGHT METHODS
@@ -390,12 +388,17 @@ public class Teleop_Basebot extends LinearOpMode {
     public double getDistanceToTag() {
         LLResult result = limelight.getLatestResult();
 
-        if (result != null && result.isValid()) {
+        if (isLatestResultValid()) {
             double ty = result.getTy();
             double angle = Math.toRadians(Constants.LIMELIGHT_MOUNT_ANGLE + ty);
             return (Constants.GOAL_HEIGHT - Constants.LIMELIGHT_HEIGHT) / Math.tan(angle);
         }
         return Double.POSITIVE_INFINITY;
+    }
+
+    public boolean isLatestResultValid() {
+        LLResult result = limelight.getLatestResult();
+        return result != null && result.isValid();
     }
 
     // =====================================================================
@@ -496,7 +499,7 @@ public class Teleop_Basebot extends LinearOpMode {
         limelight.setPollRateHz(100);
         limelight.start();
 
-        distance = hardwareMap.get(DistanceSensor.class, "distance");
+//        distance = hardwareMap.get(DistanceSensor.class, "distance");
 
         blinkinLedDriver = hardwareMap.get(RevBlinkinLedDriver.class, "blinkin");
         pattern = RevBlinkinLedDriver.BlinkinPattern.RAINBOW_RAINBOW_PALETTE;

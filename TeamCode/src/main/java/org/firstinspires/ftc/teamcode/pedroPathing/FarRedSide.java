@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import static android.os.SystemClock.sleep;
 import static org.firstinspires.ftc.teamcode.pedroPathing.FarRedSide.FarRedSideConfigurables.*;
 
 import com.bylazar.configurables.annotations.Configurable;
@@ -51,7 +52,7 @@ public class FarRedSide extends OpMode {
     private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
 
     // Generated paths
-    private Path StartToShoot, PrepIntakeFarLine, IntakeFarLine, ShootFarLine, PrepIntakeLoadingZone, IntakeLoadingZone, ShootLoadingZone;
+    private Path StartToShoot, PrepIntakeFarLine, IntakeFarLine, ShootFarLine, PrepIntakeLoadingZone, IntakeLoadingZone, ShootLoadingZone, Park;
 
     // =====================================================================
     // CONSTANTS
@@ -84,13 +85,15 @@ public class FarRedSide extends OpMode {
         public static double defaultPathMaxDrivetrainPower = 0.8;
 
         //x coordinate of shooting pos and end of intake pos (for every line)
-        public static double shootPositionXCoordinate = 84.000;
+        public static double shootPositionXCoordinate = 90.000;
         public static double shootPositionTheta = 62; //Degrees
         public static double intakePathEndXCoordinate = 135;
 
-        public static double shooterVelocityPreload = 1450;
-        public static double shooterVelocitySpikeMarks = 1450;
-        public static double shooterVelocityLoadingZone = 1450;
+        public static double shooterVelocityPreload = 1400;
+        public static double shooterVelocitySpikeMarks = 1430;
+        public static double shooterVelocityLoadingZone = 1430;
+
+        public static double txOffsetDegrees = 3;
     }
 
     /**
@@ -159,7 +162,7 @@ public class FarRedSide extends OpMode {
      * Builds all the paths for the autonomous routine.
      */
     public void buildPaths() {
-        StartToShoot = new Path(new BezierLine(startPose, new Pose(shootPositionXCoordinate, 12.000)));
+        StartToShoot = new Path(new BezierLine(startPose, new Pose(shootPositionXCoordinate, 10.000)));
         StartToShoot.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(shootPositionTheta));
 
         PrepIntakeFarLine = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 12.000), new Pose(100, 35.000)));
@@ -178,7 +181,7 @@ public class FarRedSide extends OpMode {
         ));
         PrepIntakeLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90));
 
-        IntakeLoadingZone = new Path(new BezierLine(new Pose(136.000, 28.000), new Pose(136.000, 9.000)));
+        IntakeLoadingZone = new Path(new BezierLine(new Pose(136.000, 28.000), new Pose(136.000, 10.000)));
         IntakeLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(-90));
 
         ShootLoadingZone = new Path(new BezierCurve(
@@ -187,6 +190,8 @@ public class FarRedSide extends OpMode {
                 new Pose(shootPositionXCoordinate, 12.000)
         ));
         ShootLoadingZone.setLinearHeadingInterpolation(Math.toRadians(-90), Math.toRadians(shootPositionTheta));
+
+        Park = new Path(new BezierLine(new Pose(shootPositionXCoordinate, 12.000), new Pose(120, 12.000)));
     }
 
     /**
@@ -206,7 +211,9 @@ public class FarRedSide extends OpMode {
                 // Wait until robot reaches shoot position, then prep for far line intake
                 if (!follower.isBusy()) {
                     autoAlignTimeout(0.5);
-                    magDump(1.0);
+                    fieldCentric(0, 0, 0, 0);
+                    sleep(1000);
+                    magDump(1.5);
                     follower.followPath(PrepIntakeFarLine, true);
                     setPathState(2);
                 }
@@ -223,6 +230,7 @@ public class FarRedSide extends OpMode {
             case 3:
                 // Wait until robot reaches intake far line position, then shoot
                 if (!follower.isBusy()) {
+                    sleep(200);
                     intake.setPower(1.0);
                     follower.setMaxPower(defaultPathMaxDrivetrainPower);
                     setShooterVel(shooterVelocitySpikeMarks);
@@ -234,7 +242,8 @@ public class FarRedSide extends OpMode {
                 // Wait until robot reaches prep position, then start mid line intake
                 if (!follower.isBusy()) {
                     autoAlignTimeout(0.5);
-                    magDump(1.0);
+                    fieldCentric(0, 0, 0, 0);
+                    magDump(1.5);
                     follower.followPath(PrepIntakeLoadingZone, true);
                     setPathState(5);
                 }
@@ -251,7 +260,8 @@ public class FarRedSide extends OpMode {
             case 6:
                 // Wait until robot reaches shoot position, then prep for far line intake
                 if (!follower.isBusy()) {
-                    intake.setPower(1.0);
+                    sleep(250);
+                    intake.setPower(1.5);
                     follower.setMaxPower(defaultPathMaxDrivetrainPower);
                     setShooterVel(shooterVelocityLoadingZone);
                     follower.followPath(ShootLoadingZone, true);
@@ -262,7 +272,9 @@ public class FarRedSide extends OpMode {
                 // Wait until robot reaches prep position, then start far line intake
                 if (!follower.isBusy()) {
                     autoAlignTimeout(0.5);
-                    magDump(1.0);
+                    fieldCentric(0, 0, 0, 0);
+                    magDump(1.5);
+                    follower.followPath(Park, true);
                     setPathState(-1);
                 }
                 break;
@@ -399,7 +411,7 @@ public class FarRedSide extends OpMode {
             return "RESULT INVALID";
         }
 
-        double tx = result.getTx() - (getDistanceToTag() > 40 ? Teleop_Basebot.Constants.TX_OFFSET_DEGREES_CLOSE : Teleop_Basebot.Constants.TX_OFFSET_DEGREES_FAR);
+        double tx = result.getTx() - txOffsetDegrees;
         if (Math.abs(tx) <= tolerance) {
             frontLeft.setPower(0);
             frontRight.setPower(0);
